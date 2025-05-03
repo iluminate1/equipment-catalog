@@ -1,0 +1,359 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Equipment Catalog</title>
+
+    <link href="{% static 'css/bootstrap.min.css' %}" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" />
+    <script src="{% static 'js/jquery-3.7.1.min.js' %}"></script>
+    <script src="{% static 'js/bootstrap.bundle.min.js' %}"></script>
+</head>
+
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="{% url 'api_view:equipment-catalog' %}">Equipment Catalog</a>
+
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto"></ul>
+
+                <ul class="navbar-nav" id="authNav">
+                    <!-- Will be populated by JavaScript -->
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" id="loginBtn" style="display: none">
+                            <i class="bi bi-box-arrow-in-right"></i> Login
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" id="registerBtn" style="display: none">
+                            <i class="bi bi-person-plus"></i> Register
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" id="logoutBtn" style="display: none">
+                            <i class="bi bi-box-arrow-right"></i> Logout
+                        </a>
+                    </li>
+                    <li class="nav-item">
+
+                    <li class="nav-item dropdown" id="staffDropdown" style="display: none">
+                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                            <i class="bi bi-person-circle"></i> <span id="userGreetingText"></span>
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li><a class="dropdown-item" href="/admin/">Admin Panel</a></li>
+                            <li><a class="dropdown-item" href="/admin/api/equipment/add/">Add Equipment</a></li>
+                            <li>
+                                <hr class="dropdown-divider">
+                            </li>
+                            <li><a class="dropdown-item" href="#" id="logoutBtnDropdown">Logout</a></li>
+                        </ul>
+                    </li>
+
+                    <!-- Keep the existing logout button but modify the updateAuthUI function -->
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" id="logoutBtn" style="display: none">
+                            <i class="bi bi-box-arrow-right"></i> Logout
+                        </a>
+                    </li>
+
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Login Modal -->
+    <div class="modal fade" id="loginModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Login</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="loginForm">
+                        <div class="mb-3">
+                            <label for="loginUsername" class="form-label">Username</label>
+                            <input type="text" class="form-control" id="loginUsername" required />
+                        </div>
+                        <div class="mb-3">
+                            <label for="loginPassword" class="form-label">Password</label>
+                            <input type="password" class="form-control" id="loginPassword" required />
+                        </div>
+                        <div class="alert alert-danger" id="loginError" style="display: none"></div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        Cancel
+                    </button>
+                    <button type="button" class="btn btn-primary" id="loginSubmit">
+                        Login
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Register Modal -->
+    <div class="modal fade" id="registerModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Register</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="registerForm">
+                        <div class="mb-3">
+                            <label for="registerUsername" class="form-label">Username</label>
+                            <input type="text" class="form-control" id="registerUsername" required />
+                        </div>
+                        <div class="mb-3">
+                            <label for="registerEmail" class="form-label">Email</label>
+                            <input type="email" class="form-control" id="registerEmail" required />
+                        </div>
+                        <div class="mb-3">
+                            <label for="registerPassword" class="form-label">Password</label>
+                            <input type="password" class="form-control" id="registerPassword" required />
+                        </div>
+                        <div class="alert alert-danger" id="registerError" style="display: none"></div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        Cancel
+                    </button>
+                    <button type="button" class="btn btn-primary" id="registerSubmit">
+                        Register
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container mt-4">{% block content %}{% endblock %}</div>
+
+    <script>
+        $(document).ready(function () {
+            const API_BASE_URL = "/api";
+            let currentUser = null;
+            const loginModal = new bootstrap.Modal($('#loginModal')[0]);
+            const registerModal = new bootstrap.Modal($('#registerModal')[0]);
+
+            // Check authentication status on page load
+            checkAuthStatus();
+
+            // Setup event listeners
+            $('#loginBtn').on('click', function (e) {
+                e.preventDefault();
+                loginModal.show();
+            });
+
+            $('#registerBtn').on('click', function (e) {
+                e.preventDefault();
+                registerModal.show();
+            });
+
+            $('#logoutBtn, #logoutBtnDropdown').on('click', function (e) {
+                e.preventDefault();
+                logoutUser();
+            });
+
+            $('#loginSubmit').on('click', loginUser);
+            $('#registerSubmit').on('click', registerUser);
+
+            function checkAuthStatus() {
+                $.ajax({
+                    url: `${API_BASE_URL}/auth/me`,
+                    xhrFields: {
+                        withCredentials: true
+                    },
+                    success: function (response) {
+                        currentUser = response;
+                        updateAuthUI(true);
+                    },
+                    error: function () {
+                        currentUser = null;
+                        updateAuthUI(false);
+                    }
+                });
+            }
+
+            function updateAuthUI(isAuthenticated) {
+                if (isAuthenticated) {
+                    $('#loginBtn, #registerBtn').hide();
+                    $('#userGreetingText').text(currentUser.username);
+
+                    if (currentUser.is_staff) {
+                        $('#staffDropdown').show();
+                        $('#logoutBtn').hide();
+                    } else {
+                        $('#staffDropdown').hide();
+                        $('#logoutBtn').show();
+                    }
+                } else {
+                    $('#loginBtn, #registerBtn').show();
+                    $('#logoutBtn, #staffDropdown').hide();
+                }
+            }
+
+            async function loginUser() {
+                const username = $('#loginUsername').val();
+                const password = $('#loginPassword').val();
+                const errorElement = $('#loginError');
+
+                try {
+                    const csrfToken = await getCsrfToken();
+                    if (!csrfToken) {
+                        errorElement.text("Security error. Please refresh the page.").show();
+                        return;
+                    }
+
+                    $.ajax({
+                        url: `${API_BASE_URL}/auth/`,
+                        method: 'POST',
+                        data: JSON.stringify({
+                            username: username,
+                            password: password
+                        }),
+                        contentType: 'application/json',
+                        xhrFields: {
+                            withCredentials: true
+                        },
+                        headers: {
+                            'X-CSRFToken': csrfToken
+                        },
+                        success: function () {
+                            loginModal.hide();
+                            checkAuthStatus();
+                        },
+                        error: function () {
+                            errorElement.text("Invalid username or password").show();
+                        }
+                    });
+                } catch (error) {
+                    console.error("Login error:", error);
+                    errorElement.text("Login failed. Please try again.").show();
+                }
+            }
+
+            async function registerUser() {
+                const username = $('#registerUsername').val();
+                const email = $('#registerEmail').val();
+                const password = $('#registerPassword').val();
+                const errorElement = $('#registerError');
+
+                try {
+                    const csrfToken = await getCsrfToken();
+                    if (!csrfToken) {
+                        errorElement.text("Security error. Please refresh the page.").show();
+                        return;
+                    }
+
+                    $.ajax({
+                        url: `${API_BASE_URL}/auth/register/`,
+                        method: 'POST',
+                        data: JSON.stringify({
+                            username: username,
+                            email: email,
+                            password: password
+                        }),
+                        contentType: 'application/json',
+                        xhrFields: {
+                            withCredentials: true
+                        },
+                        headers: {
+                            'X-CSRFToken': csrfToken
+                        },
+                        success: function () {
+                            registerModal.hide();
+                            $('#registerForm')[0].reset();
+                            errorElement.hide();
+                            alert("Registration successful! Please login with your credentials.");
+                            loginModal.show();
+                        },
+                        error: function (error) {
+                            if (error.responseJSON && error.responseJSON.errors) {
+                                const errors = error.responseJSON.errors;
+                                let errorMessages = [];
+                                for (const field in errors) {
+                                    errorMessages = errorMessages.concat(errors[field]);
+                                }
+                                errorElement.text(errorMessages.join(" ")).show();
+                            } else {
+                                errorElement.text("Registration failed. Please try again.").show();
+                            }
+                        }
+                    });
+                } catch (error) {
+                    console.error("Registration error:", error);
+                    errorElement.text("Registration failed. Please try again.").show();
+                }
+            }
+
+            function getCsrfToken() {
+                return new Promise((resolve, reject) => {
+                    $.ajax({
+                        url: `${API_BASE_URL}/auth/csrf/`,
+                        xhrFields: {
+                            withCredentials: true
+                        },
+                        success: function (response) {
+                            resolve(response.csrfToken);
+                        },
+                        error: function (error) {
+                            console.error("Error getting CSRF token:", error);
+                            resolve(null);
+                        }
+                    });
+                });
+            }
+
+            async function logoutUser() {
+                try {
+                    const csrfToken = await getCsrfToken();
+                    if (!csrfToken) {
+                        alert("Failed to get security token. Please try again.");
+                        return;
+                    }
+
+                    $.ajax({
+                        url: `${API_BASE_URL}/auth/`,
+                        method: 'DELETE',
+                        contentType: 'application/json',
+                        xhrFields: {
+                            withCredentials: true
+                        },
+                        headers: {
+                            'X-CSRFToken': csrfToken
+                        },
+                        success: function () {
+                            currentUser = null;
+                            updateAuthUI(false);
+                        },
+                        error: function (error) {
+                            console.error("Logout failed:", error);
+                            alert("Logout failed. Please try again.");
+                        }
+                    });
+                } catch (error) {
+                    console.error("Logout error:", error);
+                    alert("Logout failed. Please try again.");
+                }
+            }
+        });
+    </script>
+    {% block scripts %}{% endblock %}
+</body>
+
+</html>
